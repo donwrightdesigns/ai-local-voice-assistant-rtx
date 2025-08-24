@@ -1,0 +1,151 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  discussions: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+        
+    - name: Build package
+      run: python -m build
+      
+    - name: Check package
+      run: twine check dist/*
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: dist-packages
+        path: dist/
+
+  test-release:
+    runs-on: windows-latest
+    needs: [build]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: dist-packages
+        path: dist/
+        
+    - name: Test installation from wheel
+      run: |
+        python -m pip install --upgrade pip
+        pip install (Get-ChildItem dist/*.whl | Select-Object -First 1).FullName
+        
+    - name: Test basic functionality
+      run: |
+        python -c "from src.ultimate_voice_assistant import UltimateVoiceAssistant; print('Package installed successfully')"
+
+  release:
+    runs-on: windows-latest
+    needs: [build, test-release]
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: dist-packages
+        path: dist/
+        
+    - name: Extract version from tag
+      id: get_version
+      run: |
+        $version = $env:GITHUB_REF -replace "refs/tags/v", ""
+        echo "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+        
+    - name: Generate changelog
+      id: changelog
+      run: |
+        $changelog = ""
+        if (Test-Path "CHANGELOG.md") {
+          $content = Get-Content "CHANGELOG.md" -Raw
+          $versionPattern = "## \[$env:VERSION\]"
+          $nextVersionPattern = "## \["
+          
+          $startIndex = $content.IndexOf($versionPattern)
+          if ($startIndex -ne -1) {
+            $endIndex = $content.IndexOf($nextVersionPattern, $startIndex + 1)
+            if ($endIndex -eq -1) {
+              $changelog = $content.Substring($startIndex)
+            } else {
+              $changelog = $content.Substring($startIndex, $endIndex - $startIndex)
+            }
+          }
+        }
+        
+        if (-not $changelog) {
+          $changelog = "Release v$env:VERSION`n`nSee CHANGELOG.md for full details."
+        }
+        
+        # Save changelog to file for GitHub release
+        $changelog | Out-File -FilePath "release_notes.md" -Encoding UTF8
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/*
+        body_path: release_notes.md
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+        generate_release_notes: true
+        discussion_category_name: Announcements
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-pypi:
+    runs-on: windows-latest
+    needs: [release]
+    environment: 
+      name: pypi
+      url: https://pypi.org/p/voice-assistant-windows
+    permissions:
+      id-token: write
+    
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: dist-packages
+        path: dist/
+        
+    - name: Publish package to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
+        repository-url: https://upload.pypi.org/legacy/
+        skip-existing: true

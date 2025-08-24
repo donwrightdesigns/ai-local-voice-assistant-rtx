@@ -1,0 +1,111 @@
+name: 🐛 Bug Report
+description: Report a bug or issue with the Voice Assistant
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! Please provide as much detail as possible.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      description: Please confirm you have completed the following
+      options:
+        - label: I have searched existing issues to ensure this isn't a duplicate
+          required: true
+        - label: I have read the [README](https://github.com/yourusername/voice-assistant-windows/blob/main/README.md) and [troubleshooting section](https://github.com/yourusername/voice-assistant-windows/blob/main/README.md#-troubleshooting)
+          required: true
+        - label: I am using the latest version of the Voice Assistant
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe the bug...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Start the voice assistant with '...'
+        2. Press hotkey '....'
+        3. Say '....'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear description of what you expected to happen
+      placeholder: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened instead
+      placeholder: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Information
+      description: Please provide your system information
+      placeholder: |
+        - OS: Windows 11 Pro 23H2
+        - Python Version: 3.11.5
+        - Voice Assistant Version: 1.0.0
+        - Ollama Version: 0.1.40
+        - Installed Models: llama3.2:3b
+        - Hardware: Intel i7, 16GB RAM
+        - Audio Device: Default Windows Microphone
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Share relevant parts of your config.yaml (remove sensitive information)
+      render: yaml
+      placeholder: |
+        ollama:
+          model: "llama3.2:3b"
+        stt:
+          model: "base.en"
+          device: "cpu"
+        # ... other relevant config
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log Output
+      description: Console output or error messages (if any)
+      render: shell
+      placeholder: Paste any relevant log output here...
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any additional information that might be helpful
+      placeholder: |
+        - Screenshots (if applicable)
+        - Any workarounds you've found
+        - Related issues or discussions
+        - Other relevant details

@@ -1,0 +1,147 @@
+name: 🚀 Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please provide as much detail as possible.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      description: Please confirm you have completed the following
+      options:
+        - label: I have searched existing issues to ensure this isn't a duplicate request
+          required: true
+        - label: I have read the [README](https://github.com/yourusername/voice-assistant-windows/blob/main/README.md) to understand current features
+          required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Feature Summary
+      description: A brief, clear summary of the feature you'd like to see
+      placeholder: What feature would you like to see added?
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Description
+      description: What problem does this feature solve? What use case does it address?
+      placeholder: |
+        Is your feature request related to a problem? Please describe:
+        "I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see
+      placeholder: |
+        A clear and concise description of what you want to happen.
+        How should this feature work from a user perspective?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: Which area does this feature primarily affect?
+      options:
+        - Speech Recognition (STT)
+        - Text-to-Speech (TTS)
+        - AI/LLM Integration
+        - Hotkeys & System Integration
+        - User Interface & Experience
+        - Configuration & Settings
+        - Performance & Optimization
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority Level
+      description: How important is this feature to you?
+      options:
+        - Low - Nice to have
+        - Medium - Would improve experience
+        - High - Important for workflow
+        - Critical - Blocking current use
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Have you considered alternative approaches?
+      placeholder: |
+        Describe any alternative solutions or features you've considered.
+        Are there workarounds you're currently using?
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples & Use Cases
+      description: Provide specific examples of how this feature would be used
+      placeholder: |
+        Example scenarios where this feature would be helpful:
+        1. When I'm working on...
+        2. If I could...
+        3. This would help with...
+
+  - type: textarea
+    id: mockup
+    attributes:
+      label: UI/UX Mockup (Optional)
+      description: If applicable, describe or sketch how this feature should look/behave
+      placeholder: |
+        - Screenshots, mockups, or wireframes
+        - Configuration examples
+        - Command-line interface changes
+        - Menu or dialog descriptions
+
+  - type: textarea
+    id: technical
+    attributes:
+      label: Technical Considerations (Optional)
+      description: Any technical details or constraints to consider
+      placeholder: |
+        - Integration with existing APIs
+        - Performance considerations  
+        - Compatibility requirements
+        - Security implications
+        - Dependencies that might be needed
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Would you be interested in contributing to this feature?
+      options:
+        - label: I would like to work on implementing this feature
+        - label: I can help with testing this feature
+        - label: I can help with documentation for this feature
+        - label: I can provide ongoing feedback during development
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information that might be relevant
+      placeholder: |
+        - Links to similar features in other applications
+        - Research or articles supporting this feature
+        - Community feedback or requests you've seen
+        - Any other relevant context

@@ -1,0 +1,172 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    runs-on: windows-latest
+    name: Lint and Format Check
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~\AppData\Local\pip\Cache
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        
+    - name: Run Black formatter check
+      run: black --check --diff .
+      
+    - name: Run flake8 linter
+      run: flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+      
+    - name: Run MyPy type checker
+      run: mypy src/ --ignore-missing-imports
+
+  test:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+        
+    name: Test Python ${{ matrix.python-version }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~\AppData\Local\pip\Cache
+        key: ${{ runner.os }}-${{ matrix.python-version }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.python-version }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        
+    - name: Run unit tests
+      run: |
+        pytest tests/ -v --tb=short --cov=src --cov-report=xml
+        
+    - name: Upload coverage to Codecov
+      if: matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  security:
+    runs-on: windows-latest
+    name: Security Scan
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit
+        pip install -r requirements.txt
+        
+    - name: Run Safety check for known security vulnerabilities
+      run: safety check --json
+      continue-on-error: true
+      
+    - name: Run Bandit security linter
+      run: bandit -r src/ -f json
+      continue-on-error: true
+
+  build:
+    runs-on: windows-latest
+    needs: [lint, test, security]
+    name: Build Package
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+        
+    - name: Build package
+      run: python -m build
+      
+    - name: Check package
+      run: twine check dist/*
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: dist-packages
+        path: dist/
+
+  integration-test:
+    runs-on: windows-latest
+    name: Integration Tests
+    needs: [build]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: dist-packages
+        path: dist/
+        
+    - name: Install from wheel
+      run: |
+        python -m pip install --upgrade pip
+        pip install (Get-ChildItem dist/*.whl | Select-Object -First 1).FullName[dev]
+        
+    - name: Test installation
+      run: |
+        python -c "from src.ultimate_voice_assistant import UltimateVoiceAssistant; print('Import successful')"
+        
+    - name: Run integration tests (without hardware dependencies)
+      run: |
+        pytest tests/integration/ -v --tb=short -m "not requires_hardware"

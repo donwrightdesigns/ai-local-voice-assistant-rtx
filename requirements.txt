@@ -1,0 +1,30 @@
+# Ultimate Voice Assistant Requirements for Windows
+
+# Core ML/AI Libraries
+torch>=2.0.0
+transformers>=4.35.0
+langchain>=0.3.0
+langchain-community>=0.3.0
+
+# Audio Processing
+faster-whisper>=1.1.0
+sounddevice>=0.5.0
+rich>=13.0.0
+
+# HTTP & API
+requests>=2.31.0
+httpx>=0.27.0
+
+# Configuration
+pyyaml>=6.0
+
+# Utilities
+numpy>=1.24.0
+
+# System-wide hotkeys and text injection (Windows)
+pynput==1.7.6
+
+# Screenshot support
+pyautogui>=0.9.54
+Pillow>=10.0.0
+
