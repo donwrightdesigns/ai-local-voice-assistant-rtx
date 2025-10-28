@@ -129,6 +129,8 @@ class WindowsTTS:
         if self.speaker:
             return self.speaker.Volume
         return 100
+
+    def get_current_voice(self) -> str:
         """Get current voice name"""
         if self.speaker and self.voices.Count > 0:
             return self.voices.Item(self.current_voice_index).GetDescription()

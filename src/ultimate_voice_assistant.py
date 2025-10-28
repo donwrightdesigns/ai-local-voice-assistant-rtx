@@ -29,6 +29,9 @@ import subprocess
 import requests
 import json
 
+# Phase 1: provider abstraction
+from llm_providers import make_provider, OllamaProvider, ProviderResult
+
 # Import pynput for hotkey detection and text injection
 try:
     from pynput.keyboard import Key, Listener, KeyCode, Controller as KeyboardController
@@ -54,7 +57,7 @@ except ImportError:
     TextToSpeechService = None
 
 class UltimateVoiceAssistant:
-    def __init__(self, config_path='config/config.yaml'):
+    def __init__(self, config_path=None):
         self.console = Console()
 
         # Singleton pattern to ensure only one instance runs
@@ -66,6 +69,12 @@ class UltimateVoiceAssistant:
         # Create lock file
         with open(self.lock_file, 'w') as f:
             f.write(str(os.getpid()))
+        
+        # Smart config path resolution
+        if config_path is None:
+            config_path = self._find_config_file()
+        
+        self.console.print(f"[blue]📁 Using config file: {os.path.abspath(config_path)}")
         
         # Load configuration
         with open(config_path, 'r') as f:
@@ -83,16 +92,67 @@ class UltimateVoiceAssistant:
         self.tts = None
         if TextToSpeechService:
             try:
-                self.tts = TextToSpeechService()
-                self.console.print("[green]✅ TTS initialized")
+                tts_config = self.config.get('tts', {})
+                self.tts = TextToSpeechService(
+                    engine=tts_config.get('engine', 'auto'),
+                    voice=tts_config.get('voice', ''),
+                    lang_code=tts_config.get('lang_code', 'a')
+                )
+                self.console.print(f"[green]✅ TTS initialized: {self.tts.get_voice_info()}")
             except Exception as e:
                 self.console.print(f"[yellow]⚠️  TTS initialization failed: {e}")
+
+        # Phase 1: backend selection and preflight
+        backend = os.environ.get("VOICE_BACKEND", "ollama").strip().lower()
+        mode = os.environ.get("VOICE_MODE", "faster").strip().lower()
+
+        # Optional interactive selection if env not set
+        if backend not in ("ollama", "local", "transformers") and sys.stdin.isatty():
+            self.console.print("\n[bold]Select LLM backend[/bold]")
+            self.console.print("  1) Ollama (default)")
+            self.console.print("  2) Local Transformers (coming in Phase 2)")
+            choice = input("Enter 1 or 2 (default 1): ").strip()
+            backend = "ollama" if choice in ("", "1") else "local"
+
+        # Build provider
+        # Choose local model path based on VOICE_MODE if provided in config
+        local_cfg = self.config.get('local', {})
+        local_model_path = local_cfg.get('faster_path') if mode == 'faster' else local_cfg.get('advanced_path', local_cfg.get('faster_path'))
+
+        provider = make_provider(
+            backend,
+            base_url=self.config['ollama']['base_url'],
+            model=self.config['ollama']['model'],
+            model_path=local_model_path or self.config.get('local_model_path', ''),
+            mode=mode,
+        )
+
+        # Preflight
+        pr: ProviderResult = provider.preflight()
+        if not pr.ok:
+            if isinstance(provider, OllamaProvider):
+                self.console.print("[red]❌ Ollama is not reachable.[/red]")
+                self.console.print(
+                    f"[yellow]- Tried: {self.config['ollama']['base_url']}\n"
+                    "- Make sure Ollama is running. On Windows: start the Ollama service (or run 'ollama serve').\n"
+                    "- After starting, try again."
+                )
+                # Fail fast to avoid confusing runtime errors
+                sys.exit(2)
+            else:
+                self.console.print(f"[yellow]⚠️  {pr.message}")
+                self.console.print("[yellow]Falling back to Ollama backend for now.")
+                provider = make_provider(
+                    "ollama",
+                    base_url=self.config['ollama']['base_url'],
+                    model=self.config['ollama']['model']
+                )
 
         # Initialize LLM chain with conversation memory
         prompt_template = self.config['prompts']['system_prompt']
         prompt = PromptTemplate(input_variables=["history", "input"], template=prompt_template)
 
-        llm = Ollama(model=self.config['ollama']['model'], base_url=self.config['ollama']['base_url'])
+        llm = provider.build_langchain_llm()
         self.chain = ConversationChain(
             prompt=prompt,
             verbose=False,
@@ -137,6 +197,43 @@ class UltimateVoiceAssistant:
         self.console.print(f"[green]✅ Model: {self.config['ollama']['model']}")
         self.console.print(f"[green]✅ Whisper: {self.config['stt']['model']}")
 
+    def _find_config_file(self):
+        """Intelligently find the config file in various locations"""
+        possible_paths = [
+            # Current directory
+            'config.yaml',
+            # Config subdirectory in current directory
+            'config/config.yaml',
+            # Parent directory config
+            '../config/config.yaml',
+            # Two levels up config (in case we're in a subdirectory of src)
+            '../../config/config.yaml',
+            # Absolute path relative to this script's location
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config', 'config.yaml'),
+            # Environment variable override
+            os.environ.get('VOICE_ASSISTANT_CONFIG', '')
+        ]
+        
+        # Remove empty paths
+        possible_paths = [p for p in possible_paths if p]
+        
+        for config_path in possible_paths:
+            if os.path.exists(config_path):
+                return config_path
+        
+        # If no config found, create a helpful error message
+        self.console.print("[red]❌ Could not find config.yaml in any of these locations:")
+        for path in possible_paths:
+            abs_path = os.path.abspath(path)
+            exists = "✅" if os.path.exists(path) else "❌"
+            self.console.print(f"[yellow]  {exists} {abs_path}")
+        
+        self.console.print("\n[blue]💡 Solutions:")
+        self.console.print("[blue]  1. Run from the project root directory")
+        self.console.print("[blue]  2. Set VOICE_ASSISTANT_CONFIG environment variable")
+        self.console.print("[blue]  3. Create config.yaml in current directory")
+        
+        raise FileNotFoundError("config.yaml not found in any expected location")
 
     def record_audio_callback(self, indata, frames, time, status):
         """Callback for audio recording"""

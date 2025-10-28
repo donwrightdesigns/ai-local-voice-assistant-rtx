@@ -9,10 +9,19 @@ ollama:
     top_p: 0.9
     top_k: 40
 
+# Local Transformers (Phase 2)
+local:
+  # Set your local model paths here (Windows paths are fine)
+  faster_path: "J:\\TOOLS\\voice-assistant-rtx\\voice-assistant-models\\mistral_7b_AWQ_int4_chat"
+  advanced_path: "J:\\TOOLS\\voice-assistant-rtx\\voice-assistant-models\\llama2_13b_AWQ_INT4_chat"
+
 # Text-to-Speech Configuration
 tts:
-  engine: "auto"  # auto, bark, windows
-  voice: ""  # "v2/en_speaker_6" for bark, or a voice name for windows
+  engine: "auto"  # Options: auto, kokoro, pyttsx3, windows, bark, none
+  voice: "af_heart"  # Kokoro: af_heart, af_bella, af_sarah, am_adam, bf_emma, etc.
+                     # Windows/pyttsx3: zira, david, etc.
+                     # Bark: v2/en_speaker_6
+  lang_code: "a"  # Kokoro language: 'a' (American), 'b' (British)
 
 # Speech-to-Text Configuration
 stt:

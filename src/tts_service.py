@@ -13,11 +13,15 @@ from typing import Optional, Tuple
 
 # Try to import Bark
 BARK_AVAILABLE = False
+SAMPLE_RATE = 22050  # Default sample rate
 try:
     from bark import SAMPLE_RATE, generate_audio, preload_models
     BARK_AVAILABLE = True
-except ImportError:
-    print("Bark not available - install with: pip install suno-bark")
+except (ImportError, FileNotFoundError, OSError) as e:
+    # Catch import errors, missing dependencies, or broken installations
+    BARK_AVAILABLE = False
+    generate_audio = None
+    preload_models = None
 
 # Try to import pyttsx3
 PYTTSX3_AVAILABLE = False
@@ -35,22 +39,37 @@ try:
 except ImportError:
     print("Windows TTS not available")
 
+# Try to import Kokoro TTS
+KOKORO_AVAILABLE = False
+try:
+    from kokoro_tts import KokoroTTS
+    KOKORO_AVAILABLE = True
+except ImportError:
+    print("Voice Assistant RTX TTS not available - install with: pip install kokoro>=0.9.2 soundfile")
+
 
 
 class TextToSpeechService:
-    def __init__(self, engine="auto"):
+    def __init__(self, engine="auto", voice="", lang_code="a"):
         """
         Initialize TTS service
-        engine options: "auto", "pyttsx3", "bark", "windows", "none"
+        engine options: "auto", "pyttsx3", "bark", "windows", "kokoro", "none"
+        voice: specific voice name to use (e.g., "zira", "david", "af_heart")
+        lang_code: language code for Kokoro ('a' for American English)
         """
         self.engine = None
         self.bark_ready = False
         self.windows_tts = None
         self.pyttsx3_tts = None
+        self.kokoro_tts = None
+        self.preferred_voice = voice.lower().strip() if voice else ""
+        self.lang_code = lang_code
         
         if engine == "auto":
-            # Priority: pyttsx3 (tuned Windows voices), Windows, Bark
-            if PYTTSX3_AVAILABLE:
+            # Priority: Kokoro (best quality), pyttsx3, Windows, Bark
+            if KOKORO_AVAILABLE:
+                engine = "kokoro"
+            elif PYTTSX3_AVAILABLE:
                 engine = "pyttsx3"
             elif WINDOWS_TTS_AVAILABLE:
                 engine = "windows"
@@ -66,7 +85,9 @@ class TextToSpeechService:
         """Initialize the specified TTS engine"""
         self.engine = None
 
-        if engine == "bark" and BARK_AVAILABLE:
+        if engine == "kokoro" and KOKORO_AVAILABLE:
+            self._init_kokoro()
+        elif engine == "bark" and BARK_AVAILABLE:
             self._init_bark()
         elif engine == "pyttsx3" and PYTTSX3_AVAILABLE:
             self._init_pyttsx3()
@@ -96,12 +117,35 @@ class TextToSpeechService:
             if self.pyttsx3_tts:
                 # Configure voice settings
                 voices = self.pyttsx3_tts.getProperty('voices')
+                voice_set = False
+                
                 if voices:
-                    # Try to use a female voice if available
-                    for voice in voices:
-                        if 'female' in voice.name.lower() or 'zira' in voice.name.lower():
-                            self.pyttsx3_tts.setProperty('voice', voice.id)
-                            break
+                    # First try to use the preferred voice from config
+                    if self.preferred_voice:
+                        for voice in voices:
+                            if self.preferred_voice in voice.name.lower():
+                                self.pyttsx3_tts.setProperty('voice', voice.id)
+                                print(f"Selected voice: {voice.name}")
+                                voice_set = True
+                                break
+                    
+                    # If preferred voice not found or not specified, try female/zira
+                    if not voice_set:
+                        for voice in voices:
+                            if 'female' in voice.name.lower() or 'zira' in voice.name.lower():
+                                self.pyttsx3_tts.setProperty('voice', voice.id)
+                                print(f"Selected voice: {voice.name}")
+                                voice_set = True
+                                break
+                    
+                    # Show current voice if no specific selection was made
+                    if not voice_set and voices:
+                        current_voice = self.pyttsx3_tts.getProperty('voice')
+                        for voice in voices:
+                            if voice.id == current_voice:
+                                print(f"Using default voice: {voice.name}")
+                                break
+                                
                 # Set speech rate and volume
                 self.pyttsx3_tts.setProperty('rate', 200)  # Speed of speech
                 self.pyttsx3_tts.setProperty('volume', 0.9)  # Volume level
@@ -121,6 +165,20 @@ class TextToSpeechService:
             print("✅ Windows SAPI TTS initialized")
         except Exception as e:
             print(f"❌ Windows TTS initialization failed: {e}")
+
+    def _init_kokoro(self):
+        try:
+            print("🎤 Initializing Voice Assistant RTX TTS...")
+            # Use preferred voice if specified, otherwise default to af_heart
+            voice = self.preferred_voice if self.preferred_voice else "af_heart"
+            self.kokoro_tts = KokoroTTS(voice=voice, lang_code=self.lang_code)
+            if self.kokoro_tts.is_available():
+                self.engine = "kokoro"
+                print("✅ Voice Assistant RTX TTS initialized")
+            else:
+                print("❌ Voice Assistant RTX TTS failed to initialize")
+        except Exception as e:
+            print(f"❌ Voice Assistant RTX TTS initialization failed: {e}")
 
     def switch_engine(self, new_engine: str) -> bool:
         if new_engine == self.engine:
@@ -195,6 +253,16 @@ class TextToSpeechService:
             print(f"❌ Windows TTS synthesis error: {e}")
             return 22050, np.array([])
 
+    def _kokoro_synthesize(self, text: str) -> Tuple[int, np.ndarray]:
+        """Synthesize using Kokoro TTS"""
+        try:
+            if self.kokoro_tts:
+                return self.kokoro_tts.synthesize(text)
+            return 24000, np.array([])
+        except Exception as e:
+            print(f"❌ Kokoro synthesis error: {e}")
+            return 24000, np.array([])
+
     def _threaded_pyttsx3_speak(self, text: str):
         """Thread-safe pyttsx3 speech function"""
         try:
@@ -228,7 +296,16 @@ class TextToSpeechService:
         if not text or not self.is_available():
             return False
 
-        if self.engine == "pyttsx3" and self.pyttsx3_tts:
+        if self.engine == "kokoro" and self.kokoro_tts:
+            # For Kokoro, synthesize and play
+            sample_rate, audio_array = self._kokoro_synthesize(text)
+            if len(audio_array) > 0:
+                sd.play(audio_array, sample_rate)
+                sd.wait()
+                return True
+            return False
+
+        elif self.engine == "pyttsx3" and self.pyttsx3_tts:
             # Use threaded approach to avoid run loop conflicts
             try:
                 thread = threading.Thread(target=self._threaded_pyttsx3_speak, args=(text,), daemon=True)
@@ -255,7 +332,9 @@ class TextToSpeechService:
 
     def get_voice_info(self) -> str:
         """Get information about current voice"""
-        if self.engine == "bark":
+        if self.engine == "kokoro" and self.kokoro_tts:
+            return f"Voice Assistant RTX TTS - {self.kokoro_tts.get_current_voice()}"
+        elif self.engine == "bark":
             return "Bark TTS (v2/en_speaker_6)"
         elif self.engine == "pyttsx3" and self.pyttsx3_tts:
             try:
@@ -278,7 +357,22 @@ class TextToSpeechService:
 
     def next_voice(self):
         """Switch to next available voice"""
-        if self.engine == "pyttsx3" and self.pyttsx3_tts:
+        if self.engine == "kokoro" and self.kokoro_tts:
+            # Kokoro voice cycling
+            voices = [
+                "af_heart", "af_bella", "af_nicole", "af_sarah", "af_sky",
+                "am_adam", "am_michael",
+                "bf_emma", "bf_isabella",
+                "bm_george", "bm_lewis"
+            ]
+            current = self.kokoro_tts.get_current_voice()
+            try:
+                current_idx = voices.index(current)
+                next_idx = (current_idx + 1) % len(voices)
+                self.kokoro_tts.set_voice(voices[next_idx])
+            except ValueError:
+                self.kokoro_tts.set_voice(voices[0])
+        elif self.engine == "pyttsx3" and self.pyttsx3_tts:
             try:
                 voices = self.pyttsx3_tts.getProperty('voices')
                 current_voice = self.pyttsx3_tts.getProperty('voice')
