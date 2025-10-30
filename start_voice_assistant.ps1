@@ -19,21 +19,21 @@ if ($ollamaService) {
     if (-not $ollamaRunning) {
         Write-Host "🚀 Launching Ollama (no service detected)..." -ForegroundColor Yellow
         try { Start-Process "ollama" -ArgumentList "serve" -WindowStyle Hidden; Start-Sleep -Seconds 3; Write-Host "✅ Ollama started" -ForegroundColor Green } catch { Write-Host "⚠️  Could not auto-start Ollama. Start manually: ollama serve" -ForegroundColor Yellow }
-    } else {
-        Write-Host "✅ Ollama is already running" -ForegroundColor Green
+        } else {
+            Write-Host "✅ Ollama is already running" -ForegroundColor Green
+            }
     }
-}
 
 # Clean stale lock if PID not running
-$lockPath = Join-Path $PSScriptRoot "voice_assistant.lock"
-if (Test-Path $lockPath) {
-    try {
-        $pidText = Get-Content $lockPath -ErrorAction Stop | Select-Object -First 1
-        $pidVal = [int]$pidText
-        $proc = Get-Process -Id $pidVal -ErrorAction SilentlyContinue
-        if (-not $proc) { Remove-Item $lockPath -Force -ErrorAction SilentlyContinue; Write-Host "🧹 Removed stale lock" -ForegroundColor Yellow }
-    } catch { Remove-Item $lockPath -Force -ErrorAction SilentlyContinue }
-}
+    $lockPath = Join-Path $PSScriptRoot "voice_assistant.lock"
+    if (Test-Path $lockPath) {
+        try {
+            $pidText = Get-Content $lockPath -ErrorAction Stop | Select-Object -First 1
+            $pidVal = [int]$pidText
+            $proc = Get-Process -Id $pidVal -ErrorAction SilentlyContinue
+            if (-not $proc) { Remove-Item $lockPath -Force -ErrorAction SilentlyContinue; Write-Host "🧹 Removed stale lock" -ForegroundColor Yellow }
+        } catch { Remove-Item $lockPath -Force -ErrorAction SilentlyContinue }
+    }
 
 Write-Host ""
 
@@ -47,7 +47,7 @@ $condaExe = if (Test-Path $defaultConda) { $defaultConda } else { "conda" }
 $env:CONDA_ENVS_PATH = Join-Path $env:USERPROFILE "miniconda3\envs"
 
 # Allow overriding env name; default to new Kokoro env
-$envName = if ($env:VOICE_ENV -and $env:VOICE_ENV.Trim().Length -gt 0) { $env:VOICE_ENV } else { "voice-assistant" }
+$envName = if ($env:VOICE_ENV -and $env:VOICE_ENV.Trim().Length -gt 0) { $env:VOICE_ENV } else { "va-clean" }
 
 # If env not found, print hint and exit cleanly
 $envsList = & $condaExe env list 2>$null | Out-String

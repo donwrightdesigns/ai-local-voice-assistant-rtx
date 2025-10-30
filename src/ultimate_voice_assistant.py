@@ -17,7 +17,27 @@ from faster_whisper import WhisperModel
 import sounddevice as sd
 from queue import Queue
 from rich.console import Console
-from langchain.memory import ConversationBufferMemory
+
+# LANGCHAIN MEMORY IMPORT - compatibility across versions
+ConversationBufferMemory = None
+try:
+    # Newest, definitive import path for the currently installed Conda version (0.3.27)
+    from langchain.memory.buffer import ConversationBufferMemory  # type: ignore
+    ConversationBufferMemory = ConversationBufferMemory
+except Exception:
+    try:
+        # Fallback 1 (New split packaging)
+        from langchain_core.memory import ConversationBufferMemory  # type: ignore
+        ConversationBufferMemory = ConversationBufferMemory
+    except Exception:
+        try:
+            # Fallback 2 (Community package location)
+            from langchain_community.memory import ConversationBufferMemory  # type: ignore
+            ConversationBufferMemory = ConversationBufferMemory
+        except Exception:
+            # If all imports fail, keep ConversationBufferMemory as None
+            ConversationBufferMemory = None
+
 from langchain.chains import ConversationChain
 from langchain.prompts import PromptTemplate
 from langchain_community.llms import Ollama
@@ -153,10 +173,21 @@ class UltimateVoiceAssistant:
         prompt = PromptTemplate(input_variables=["history", "input"], template=prompt_template)
 
         llm = provider.build_langchain_llm()
+        # Use ConversationBufferMemory only if it was successfully imported
+        memory_obj = None
+        if ConversationBufferMemory is not None:
+            try:
+                memory_obj = ConversationBufferMemory(ai_prefix="Assistant:")
+            except Exception as e:
+                self.console.print(f"[yellow]⚠️ Failed to instantiate ConversationBufferMemory: {e}")
+                memory_obj = None
+        else:
+            self.console.print("[yellow]⚠️ langchain ConversationBufferMemory import failed - conversation history disabled")
+
         self.chain = ConversationChain(
             prompt=prompt,
             verbose=False,
-            memory=ConversationBufferMemory(ai_prefix="Assistant:"),
+            memory=memory_obj,
             llm=llm,
         )
 
@@ -193,9 +224,24 @@ class UltimateVoiceAssistant:
                     except ValueError:
                         self.console.print(f"[yellow]Warning: Invalid VK code '{key_str}'")
         
+        # Display initialization info (This is the full welcome banner)
         self.console.print(f"[green]✅ Ultimate Voice Assistant initialized")
         self.console.print(f"[green]✅ Model: {self.config['ollama']['model']}")
         self.console.print(f"[green]✅ Whisper: {self.config['stt']['model']}")
+        self.console.print("\n" + "="*70)
+        self.console.print("[bold cyan]🎤 ULTIMATE VOICE ASSISTANT STARTED!")
+        self.console.print("="*70)
+        self.console.print(f"[green]• [bold]Ctrl+F2[/bold] - Conversation Mode (AI chat with voice response)")
+        self.console.print(f"[green]• [bold]Ctrl+F1[/bold] - Dictation Mode (types what you say)")
+        self.console.print(f"[yellow]• [bold]F15[/bold] - AI Typing Mode (AI response typed at cursor)")
+        self.console.print(f"[yellow]• [bold]F14[/bold] - Screen AI Mode (AI sees screen + types response)")
+        if self.EXTRA_DICTATION_KEYS:
+            self.console.print(f"[green]• [bold]Custom Keys[/bold] - Extra dictation keys configured")
+        self.console.print(f"[blue]• [bold]Menu[/bold] - Reset conversation memory")
+        self.console.print(f"[red]• [bold]Escape[/bold] - Exit")
+        self.console.print(f"[blue]• TTS: {'Enabled' if self.tts else 'Disabled'}")
+        self.console.print(f"[blue]• Screenshots: {'Enabled' if SCREENSHOT_AVAILABLE else 'Disabled'}")
+        self.console.print("="*70 + "\n")
 
     def _find_config_file(self):
         """Intelligently find the config file in various locations"""
@@ -470,21 +516,6 @@ class UltimateVoiceAssistant:
         if not PYNPUT_AVAILABLE:
             self.console.print("[red]❌ pynput not available. Cannot start hotkey mode.")
             return
-            
-        self.console.print("\n" + "="*70)
-        self.console.print("[bold cyan]🎤 ULTIMATE VOICE ASSISTANT STARTED!")
-        self.console.print("="*70)
-        self.console.print(f"[green]• [bold]Ctrl+F2[/bold] - Conversation Mode (AI chat with voice response)")
-        self.console.print(f"[green]• [bold]Ctrl+F1[/bold] - Dictation Mode (types what you say)")
-        self.console.print(f"[yellow]• [bold]F15[/bold] - AI Typing Mode (AI response typed at cursor)")
-        self.console.print(f"[yellow]• [bold]F14[/bold] - Screen AI Mode (AI sees screen + types response)")
-        if self.EXTRA_DICTATION_KEYS:
-            self.console.print(f"[green]• [bold]Custom Keys[/bold] - Extra dictation keys configured")
-        self.console.print(f"[blue]• [bold]Menu[/bold] - Reset conversation memory")
-        self.console.print(f"[red]• [bold]Escape[/bold] - Exit")
-        self.console.print(f"[blue]• TTS: {'Enabled' if self.tts else 'Disabled'}")
-        self.console.print(f"[blue]• Screenshots: {'Enabled' if SCREENSHOT_AVAILABLE else 'Disabled'}")
-        self.console.print("="*70 + "\n")
 
         try:
             # Start audio input stream
@@ -510,6 +541,7 @@ class UltimateVoiceAssistant:
 
 def main():
     assistant = UltimateVoiceAssistant()
+    sys.stdout.flush()
     assistant.run()
 
 if __name__ == "__main__":

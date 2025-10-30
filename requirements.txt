@@ -5,8 +5,9 @@ torch>=2.0.0
 transformers>=4.35.0
 langchain>=0.3.0
 langchain-community>=0.3.0
+
 # Optional for local quantized models (AWQ)
-autoawq>=0.2.7
+#autoawq>=0.2
 accelerate>=0.31.0
 
 # Audio Processing
