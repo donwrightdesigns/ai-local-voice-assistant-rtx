@@ -114,17 +114,17 @@ class Assistant:
                         detected = wake.wait()
                         if not detected:
                             return
-                # after wake, capture speech for a few seconds
-                frames = []
-                start_ts = time.time()
-                capture_sec = int(self.config.get("vad", {}).get("capture_duration", 5))
-                while time.time() - start_ts < capture_sec:
-                            f = next(self.recorder)
-                            frames.append(f)
-                        audio_bytes = b"".join(frames)
-                        transcript = self.whisper.transcribe(audio_bytes)["text"]
-                        await self._process_query(transcript)
-                        return
+                    # after wake, capture speech for a few seconds
+                    frames = []
+                    start_ts = time.time()
+                    capture_sec = int(self.config.get("vad", {}).get("capture_duration", 5))
+                    while time.time() - start_ts < capture_sec:
+                        f = next(self.recorder)
+                        frames.append(f)
+                    audio_bytes = b"".join(frames)
+                    transcript = self.whisper.transcribe(audio_bytes)["text"]
+                    await self._process_query(transcript)
+                    return
 
         # Default VAD path
         energy_threshold = self.config.get("vad", {}).get("energy_threshold", 2500)

@@ -3,7 +3,9 @@ import webrtcvad
 import numpy as np
 from typing import Generator
 
-CHUNK = 512                      # 10 ms at 16 kHz
+# WebRTC VAD requires frame sizes of 10, 20, or 30 ms.
+# At 16 kHz, that's 160, 320, or 480 samples respectively.
+CHUNK = 480                      # 30 ms at 16 kHz (compatible with webrtcvad)
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 16000
