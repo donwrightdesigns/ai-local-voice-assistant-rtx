@@ -19,6 +19,23 @@ from .llm_providers import (
 from .tts_service import TTSService
 import coqui_whisper
 import os
+
+# Optional hotkey and typing support
+try:
+    from pynput.keyboard import Key, Listener, Controller as KeyboardController
+    PYNPUT_AVAILABLE = True
+except Exception:
+    PYNPUT_AVAILABLE = False
+
+# Optional screenshot support
+SCREENSHOT_AVAILABLE = False
+try:
+    import pyautogui
+    from PIL import Image
+    SCREENSHOT_AVAILABLE = True
+except Exception:
+    SCREENSHOT_AVAILABLE = False
+
 try:
     from .porcupine_wake import PorcupineWake
     PORCUPINE_AVAILABLE = True
@@ -84,11 +101,37 @@ class Assistant:
         self.recorder = AudioRecorder(vad_mode=vad_mode)
         self.state = "idle"
 
+        # Hotkey state
+        self._keyboard = KeyboardController() if PYNPUT_AVAILABLE else None
+        self._record_flag = False
+        self._mode_active: str | None = None
+        self._frame_buffer: list[bytes] = []
+
     async def _process_query(self, text: str):
         self.state = "processing"
+        # Simple buffered streaming for smoother TTS
+        buf = []
+        last_flush = time.time()
         async for token in self.llm.stream(text):
-            # streaming → incremental speaking
-            self.tts_service.speak_tokens([token])
+            buf.append(token)
+            should_flush = False
+            if any(token.endswith(p) for p in (".", "!", "?")):
+                should_flush = True
+            if len(" ".join(buf)) >= 80:
+                should_flush = True
+            if time.time() - last_flush > 0.6:
+                should_flush = True
+            if should_flush:
+                chunk = " ".join(buf).strip()
+                if chunk:
+                    self.tts_service.speak_tokens([chunk])
+                buf.clear()
+                last_flush = time.time()
+        # Flush any remainder
+        if buf:
+            chunk = " ".join(buf).strip()
+            if chunk:
+                self.tts_service.speak_tokens([chunk])
         self.state = "idle"
 
     async def listen(self):
@@ -141,10 +184,162 @@ class Assistant:
                 transcript = self.whisper.transcribe(audio_bytes)["text"]
                 await self._process_query(transcript)
 
+    def _type_text(self, text: str):
+        if not self._keyboard:
+            return
+        try:
+            # small wake-up
+            self._keyboard.type(" ")
+            import time as _t
+            _t.sleep(0.02)
+            # backspace the wake space
+            from pynput.keyboard import Key as _Key
+            self._keyboard.press(_Key.backspace)
+            self._keyboard.release(_Key.backspace)
+            _t.sleep(0.02)
+            self._keyboard.type(text)
+        except Exception:
+            pass
+
+    def _capture_screenshot_b64(self, max_width: int = 1024) -> str | None:
+        if not SCREENSHOT_AVAILABLE:
+            return None
+        try:
+            img = pyautogui.screenshot()
+            if img.width > max_width:
+                ratio = max_width / img.width
+                img = img.resize((max_width, int(img.height * ratio)))
+            import base64, io
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            return base64.b64encode(buf.getvalue()).decode("utf-8")
+        except Exception:
+            return None
+
+    def _frame_reader(self):
+        """Background reader that appends frames while recording flag is set."""
+        for frame in self.recorder:
+            if self._record_flag:
+                self._frame_buffer.append(frame)
+
+    def _consume_audio_and_process(self, mode: str):
+        # Join frames and transcribe
+        audio_bytes = b"".join(self._frame_buffer)
+        self._frame_buffer.clear()
+        if not audio_bytes:
+            return
+        transcript = self.whisper.transcribe(audio_bytes)["text"]
+        if not transcript.strip():
+            return
+        if mode == "dictation":
+            self._type_text(transcript + " ")
+            return
+        if mode == "ai_typing":
+            # get llm response then type
+            async def _go():
+                async for tok in self.llm.stream(transcript):
+                    pass
+            # simpler: one-shot using buffered _process_query then type final
+            # Here we just reuse streaming into a buffer
+            async def _respond_and_type():
+                out = []
+                async for tok in self.llm.stream(transcript):
+                    out.append(tok)
+                txt = " ".join(out).strip()
+                if txt:
+                    self._type_text(txt + " ")
+            asyncio.run(_respond_and_type())
+            return
+        if mode == "screen_ai":
+            b64 = self._capture_screenshot_b64()
+            prompt = transcript
+            if b64:
+                prompt = (
+                    "You have access only to text. The following is a base64-encoded screenshot provided for context. "
+                    "Describe what to do succinctly based on the user's request.\nSCREENSHOT_BASE64: "
+                    + b64[:2048]
+                    + "...\nUser: "
+                    + transcript
+                )
+            asyncio.run(self._process_query(prompt))
+            # Also type a short response for convenience handled by TTS already
+            return
+        # conversation (default)
+        asyncio.run(self._process_query(transcript))
+
+    def _run_hotkeys(self):
+        if not PYNPUT_AVAILABLE:
+            print("[hotkeys] pynput not available; cannot start hotkey mode.")
+            return
+        # Start frame reader thread
+        import threading
+        t = threading.Thread(target=self._frame_reader, daemon=True)
+        t.start()
+
+        # Key bindings
+        # Defaults: Ctrl+F2 conversation, Ctrl+F1 dictation, F15 ai_typing, F14 screen_ai
+        ctrl_down = {"state": False}
+
+        def on_press(key):
+            try:
+                from pynput.keyboard import Key as _K
+                if key in (_K.ctrl_l, _K.ctrl_r):
+                    ctrl_down["state"] = True
+                    return
+                # Ctrl+F2
+                if ctrl_down["state"] and key == _K.f2 and not self._record_flag:
+                    self._record_flag = True
+                    self._mode_active = "conversation"
+                    self._frame_buffer.clear()
+                # Ctrl+F1
+                elif ctrl_down["state"] and key == _K.f1 and not self._record_flag:
+                    self._record_flag = True
+                    self._mode_active = "dictation"
+                    self._frame_buffer.clear()
+                # F15
+                elif key == _K.f15 and not self._record_flag:
+                    self._record_flag = True
+                    self._mode_active = "ai_typing"
+                    self._frame_buffer.clear()
+                # F14
+                elif key == _K.f14 and not self._record_flag:
+                    self._record_flag = True
+                    self._mode_active = "screen_ai"
+                    self._frame_buffer.clear()
+            except Exception:
+                pass
+
+        def on_release(key):
+            try:
+                from pynput.keyboard import Key as _K
+                if key in (_K.ctrl_l, _K.ctrl_r):
+                    ctrl_down["state"] = False
+                # Stop when corresponding key releases
+                if self._record_flag and (
+                    key in (_K.f2, _K.f1, _K.f14, _K.f15)
+                ):
+                    self._record_flag = False
+                    mode = self._mode_active or "conversation"
+                    self._mode_active = None
+                    # process in thread to not block listener
+                    import threading
+                    threading.Thread(target=self._consume_audio_and_process, args=(mode,), daemon=True).start()
+                if key == _K.esc:
+                    return False
+            except Exception:
+                pass
+
+        with Listener(on_press=on_press, on_release=on_release) as listener:
+            listener.join()
+
     async def run(self):
         """
-        Main loop – keeps listening forever.
+        Main entry – hotkey mode or wake/VAD mode based on config.
         """
+        mode = str(self.config.get("mode", "hotkey")).lower()
+        if mode == "hotkey":
+            self._run_hotkeys()
+            return
         while True:
             await self.listen()
 

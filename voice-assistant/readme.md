@@ -16,6 +16,15 @@
   ```
 - Choices are saved to `%APPDATA%\VoiceAssistant\settings.yaml` and used on subsequent runs.
 
+### Hotkeys (optional mode)
+- Set `mode: "hotkey"` in `voice-assistant/config.yaml` to enable.
+- Defaults:
+  - Ctrl+F2 → Conversation (AI speaks back)
+  - Ctrl+F1 → Dictation (types what you say)
+  - F15 → AI typing (LLM types a response)
+  - F14 → Screen AI (captures a screenshot and uses it for context; text-only fallback)
+  - Escape → Exit
+
 # Voice Assistant – Local, GPU‑Powered, Windows 11
 
 A minimal, fully‑offline voice assistant that uses:
