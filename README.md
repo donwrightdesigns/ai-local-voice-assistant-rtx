@@ -1,27 +1,18 @@
-# Ultimate Voice Assistant for Windows
+# RTX Hands-Free Assistant (Beta)
 
-A powerful, AI-driven voice assistant designed specifically for Windows with system-wide hotkeys, speech-to-text transcription, AI conversation capabilities, and text-to-speech responses.
+**Local, open-source, GPU-optimized voice assistant** — No cloud, no subscriptions, works entirely offline with Porcupine wake-words, screen reading, and Kokoro TTS.
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows/)
+![Language](https://img.shields.io/badge/Python-3.12-blue) ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey) ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-## 🌟 Features
+## 🌟 Key Features
 
-### Voice Interaction Modes
-- **🗨️ Conversation Mode** (`Ctrl+F2`) - AI chat with text-to-speech responses
-- **📝 Dictation Mode** (`Ctrl+F1`) - Direct speech-to-text transcription 
-- **🤖 AI Typing Mode** (`F15`) - AI processes your speech and types the response
-- **📸 Screen AI Mode** (`F14`) - AI analyzes your screen and responds contextually
-
-### Core Capabilities
-- **System-wide hotkeys** - Works in any application
-- **Advanced speech recognition** using OpenAI's Whisper model
-- **AI conversation** powered by Ollama (local LLM)
-- **Multiple TTS engines** (Windows SAPI, Piper TTS)
-- **Screenshot analysis** for visual context
-- **Conversation memory** with reset capability
-- **Custom hotkey support** via environment variables
+- **Porcupine Wake-Word** — Hands-free "computer" or "jarvis" voice trigger (VAD fallback)
+- **Kokoro TTS** — Fast, natural-sounding speech synthesis on GPU
+- **Screen Reading** — AI analyzes your screen and responds contextually
+- **Hotkey Modes** — Ctrl+F2 (conversation), Ctrl+F1 (dictation), F14 (screen AI), F15 (AI typing)
+- **Local LLMs** — Ollama, vLLM, or OpenAI backends (default: Ollama for fully local operation)
+- **GPU Optimized** — Auto-detects RTX/CUDA and uses GPU for everything
+- **Two Model Tiers** — `fast` (lightweight, 3B LLM) or `advanced` (13B LLM, requires >12GB VRAM)
 
 ## 🚀 Quick Start
 
