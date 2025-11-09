@@ -5,135 +5,45 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "voice-assistant-windows"
 version = "1.0.0"
-description = "A powerful AI-driven voice assistant for Windows with system-wide hotkeys and multiple interaction modes"
+description = "A powerful AI-driven voice assistant for Windows"
 readme = "README.md"
-requires-python = ">=3.8"
-license = { text = "MIT" }
-authors = [
-    { name = "Voice Assistant Team", email = "contact@example.com" }
-]
-maintainers = [
-    { name = "Voice Assistant Team", email = "contact@example.com" }
-]
-keywords = [
-    "voice-assistant",
-    "speech-recognition",
-    "text-to-speech",
-    "ai",
-    "ollama",
-    "whisper",
-    "windows",
-    "hotkeys",
-    "dictation"
-]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: Microsoft :: Windows",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Multimedia :: Sound/Audio :: Speech",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: System :: Human Machine Interfaces"
-]
-dependencies = [
-    "torch>=2.0.0",
-    "transformers>=4.35.0",
-    "langchain>=0.3.0",
-    "langchain-community>=0.3.0",
-    "faster-whisper>=1.1.0",
-    "sounddevice>=0.5.0",
-    "rich>=13.0.0",
-    "requests>=2.31.0",
-    "httpx>=0.27.0",
-    "pyyaml>=6.0",
-    "numpy>=1.24.0",
-    "pynput==1.7.6",
-    "pyautogui>=0.9.54",
-    "Pillow>=10.0.0"
-]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "black>=23.0.0",
-    "flake8>=6.0.0",
-    "mypy>=1.0.0",
-    "pre-commit>=3.0.0"
-]
-tts = [
-    "pyttsx3>=2.90",
-    "azure-cognitiveservices-speech>=1.34.0",
-    "openai>=1.0.0"
-]
-gpu = [
-    "torch>=2.0.0+cu118"
-]
+# This section is for Pixi's CONDA packages
+[tool.pixi.dependencies]
+python = "3.12.*"
+pip = "*"
+pytorch = "*"
+pytorch-cuda = "12.4.*"
+torchvision = "*"
+torchaudio = "*"
+transformers = "*"
+numpy = "*"
+langchain = "==0.3.27" # Lock to the old version that works with your script
+langchain-community = "*"
+langchain-core = "*"
+langchain-text-splitters = "*"
+rich = "*"
+pyyaml = "*"
+requests = "*"
+httpx = "*"
+sqlalchemy = "*"
 
-[project.urls]
-Homepage = "https://github.com/yourusername/voice-assistant-windows"
-Documentation = "https://github.com/yourusername/voice-assistant-windows#readme"
-Repository = "https://github.com/yourusername/voice-assistant-windows.git"
-Issues = "https://github.com/yourusername/voice-assistant-windows/issues"
-Changelog = "https://github.com/yourusername/voice-assistant-windows/blob/main/CHANGELOG.md"
+# This section is for Pixi's PIP packages
+[tool.pixi.pypi-dependencies]
+faster-whisper = "*"
+ctranslate2 = "*"
+sounddevice = "*"
+pynput = "==1.7.6"
+pyautogui = "*"
+Pillow = "*"
+kokoro = "*"
+pyttsx3 = "*"
+# We will install autoawq and triton-windows manually
 
-[project.scripts]
-voice-assistant = "src.ultimate_voice_assistant:main"
+[tool.pixi.workspace]
+# Defines all channels with the correct priority
+channels = ["pytorch", "nvidia", "conda-forge"]
+platforms = ["win-64"]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["src*"]
-
-[tool.setuptools.package-data]
-"*" = ["config/*.yaml", "piper_voices/*.json"]
-
-# Black configuration
-[tool.black]
-line-length = 100
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
-
-# MyPy configuration
-[tool.mypy]
-python_version = "3.8"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-ignore_missing_imports = true
-
-# Pytest configuration
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = [
-    "--strict-markers",
-    "--strict-config",
-    "--cov=src",
-    "--cov-report=term-missing",
-    "--cov-report=html",
-]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-]
+[tool.pixi.tasks]
+start = { cmd = "python src/ultimate_voice_assistant.py", env = { KMP_DUPLICATE_LIB_OK = "TRUE" } }

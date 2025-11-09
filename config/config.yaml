@@ -5,7 +5,7 @@ ollama:
   base_url: "http://127.0.0.1:11434"
   model: "llama3.2:3b"
   parameters:
-    temperature: 0.7
+    temperature: 0.9
     top_p: 0.9
     top_k: 40
 
@@ -19,28 +19,26 @@ local:
 tts:
   engine: "auto"  # Options: auto, kokoro, pyttsx3, windows, bark, none
   voice: "af_heart"  # Kokoro: af_heart, af_bella, af_sarah, am_adam, bf_emma, etc.
-                     # Windows/pyttsx3: zira, david, etc.
-                     # Bark: v2/en_speaker_6
+                     # Windows/pyttsx3: zira, david, etc
   lang_code: "a"  # Kokoro language: 'a' (American), 'b' (British)
 
 # Speech-to-Text Configuration
 stt:
   model: "base.en"
-  device: "cpu"  # Use "cuda" for GPU acceleration
+  device: "cuda"  # Use "cuda" for GPU acceleration or "cpu" for basic processing
   compute_type: "int8"  # Options: "float16", "int8", "int8_float16" for GPU; "int8" for CPU
   parameters:
-    beam_size: 5
+    beam_size: 9
 
 hotkeys:
   conversation: "ctrl+f2"
   dictation: "ctrl+f1"
-  ai_typing: "f15"
-  screen_ai: "f14"
+  ai_typing: "ctrl+f3"
+  screen_ai: "ctrl+f4"
   reset: "menu"
 prompts:
   system_prompt: |
-    You are a helpful and friendly AI assistant. You are polite, respectful, and aim to provide concise responses of less 
-    than 20 words.
+    You are a fun but direct AI assistant. You inject humor and flirtation into 35% of your conversations.  You are always honest and direct, don't worry about hurting feelings.  You consider multiple  possibilities and try to keep responses less than 25 words.
     The conversation transcript is as follows:
     {history}
     And here is the user's follow-up: {input}

@@ -205,3 +205,25 @@ If you encounter any problems or have questions, please:
 ---
 
 **Made with ❤️ for the Windows community**
+
+## 🧭 Setup Wizard, Profiles, and User Settings
+
+- On first run (or via `python voice-assistant/main.py --wizard`), a TTY-only wizard lets you choose:
+  - Compute: GPU or CPU (auto-detected default)
+  - Local LLM profile: Fast / Medium / Advanced (maps to configured models)
+  - Whisper size: Fast / Medium / Advanced (tiny/base/large-v3)
+- Your choices are saved to `%APPDATA%\VoiceAssistant\settings.yaml` and override `voice-assistant/config.yaml`.
+- Desktop icon/PowerShell launcher runs the wizard automatically on first run when possible. Otherwise, defaults apply and you can customize later.
+
+### Wake-word (default) and Fallback
+- Default wake mode: Porcupine (hands-free). Set `PICOVOICE_ACCESS_KEY` to enable.
+- If Porcupine isn’t configured or installed, the app falls back to VAD automatically.
+
+### Quick commands
+```powershell
+# Run wizard explicitly
+python voice-assistant\main.py --wizard
+
+# Normal launch (Ollama by default)
+.\start_voice_assistant.ps1
+```

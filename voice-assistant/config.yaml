@@ -1,0 +1,120 @@
+# Ultimate Voice Assistant Configuration
+
+# ------------------------------------------
+# Interaction Mode
+# ------------------------------------------
+mode: "hotkey"  # "hotkey" or "vad" (interaction style)
+wake_mode: "porcupine"  # "porcupine" (default) or "vad"
+
+# ------------------------------------------
+# Hotkey Configuration (when mode = "hotkey")
+# ------------------------------------------
+hotkeys:
+  conversation: "ctrl+f2"    # AI conversation with TTS response
+  dictation: "ctrl+f1"        # Direct speech-to-text typing
+  ai_typing: "f15"           # AI response typed at cursor
+  screen_ai: "f14"           # AI with screen context + typing
+  reset: "menu"              # Reset conversation memory
+  exit: "escape"             # Exit application
+  # Custom keys (comma-separated VK codes, e.g., "vk_123,vk_124")
+  extra_dictation: ""
+
+# ------------------------------------------
+# VAD Configuration (when mode = "vad")
+# ------------------------------------------
+vad:
+  mode: 3                    # WebRTC VAD aggressiveness (0-3)
+  energy_threshold: 2500     # Adjust for your room noise level
+  capture_duration: 5        # Seconds to capture after speech detected
+
+# ------------------------------------------
+# Speech-to-Text (Whisper)
+# ------------------------------------------
+stt:
+  # Active profile selects a model from profiles below
+  profile: "medium"          # fast | medium | advanced
+  profiles:
+    fast: "tiny.en"
+    medium: "base.en"
+    advanced: "large-v3"
+  device: "auto"             # auto | cuda | cpu
+  compute_type: "int8"       # "float16", "int8", "int8_float16"
+  parameters:
+    beam_size: 5
+
+# ------------------------------------------
+# Text-to-Speech
+# ------------------------------------------
+tts:
+  engine: "auto"             # auto, kokoro, pyttsx3, windows, bark, none
+  voice: "af_heart"          # Kokoro: af_heart, am_adam, bf_emma, etc.
+                             # Windows/pyttsx3: zira, david, etc.
+  lang_code: "a"             # Kokoro language: 'a' (American), 'b' (British)
+  device: "auto"             # auto | cuda | cpu
+  fallback: true             # Enable Windows TTS fallback if Kokoro fails
+
+# ------------------------------------------
+# LLM Provider
+# ------------------------------------------
+llm:
+  provider: "ollama"         # "ollama", "openai", "vllm", "local"
+  
+  # Ollama settings
+  ollama:
+    base_url: "http://127.0.0.1:11434"
+    # Active profile selects model from profiles
+    active_profile: "fast"   # fast | medium | advanced
+    profiles:
+      fast: "llama3.2:3b"
+      medium: "llama3.1:8b"
+      advanced: "llama3.1:70b-instruct"  # requires lots of VRAM if run locally
+    parameters:
+      temperature: 0.9
+      top_p: 0.9
+      top_k: 40
+  
+  # OpenAI settings
+  openai:
+    model: "gpt-4o-mini"
+    api_key_env: "OPENAI_API_KEY"  # Environment variable name
+  
+  # vLLM settings
+  vllm:
+    endpoint: "http://localhost:8000/v1"
+  
+  # Local transformers (Phase 2)
+  local:
+    mode: "faster"           # "faster" or "advanced"
+    faster_path: "J:\\TOOLS\\voice-assistant-rtx\\voice-assistant-models\\mistral_7b_AWQ_int4_chat"
+    advanced_path: "J:\\TOOLS\\voice-assistant-rtx\\voice-assistant-models\\llama2_13b_AWQ_INT4_chat"
+
+# ------------------------------------------
+# Prompts
+# ------------------------------------------
+prompts:
+  system_prompt: |
+    You are a helpful and friendly AI assistant. You are polite, 
+    respectful, and aim to provide concise responses under 25 words 
+    when possible. Be direct and honest.
+    
+    The conversation transcript is as follows:
+    {history}
+    
+    And here is the user's follow-up: {input}
+    
+    Your response:
+
+# ------------------------------------------
+# Screenshot Settings
+# ------------------------------------------
+screenshot:
+  enabled: true
+  max_width: 1024            # Resize screenshots to this width
+
+# ------------------------------------------
+# Advanced Settings
+# ------------------------------------------
+advanced:
+  singleton: true            # Only allow one instance
+  lock_file: "voice_assistant.lock"
+  debug: false

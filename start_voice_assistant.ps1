@@ -1,6 +1,6 @@
-# Voice Assistant RTX Launcher
-# Ensures Ollama is running, cleans stale locks, starts the app
+#!/usr/bin/env powershell
 
+# Ensure Ollama is running, cleans stale locks, starts the app
 Write-Host "🎤 Starting Voice Assistant RTX..." -ForegroundColor Cyan
 Write-Host ""
 
@@ -25,37 +25,38 @@ if ($ollamaService) {
     }
 
 # Clean stale lock if PID not running
-    $lockPath = Join-Path $PSScriptRoot "voice_assistant.lock"
-    if (Test-Path $lockPath) {
-        try {
-            $pidText = Get-Content $lockPath -ErrorAction Stop | Select-Object -First 1
-            $pidVal = [int]$pidText
-            $proc = Get-Process -Id $pidVal -ErrorAction SilentlyContinue
-            if (-not $proc) { Remove-Item $lockPath -Force -ErrorAction SilentlyContinue; Write-Host "🧹 Removed stale lock" -ForegroundColor Yellow }
-        } catch { Remove-Item $lockPath -Force -ErrorAction SilentlyContinue }
-    }
+$lockPath = Join-Path $PSScriptRoot "voice_assistant.lock"
+if (Test-Path $lockPath) {
+    try {
+        $pidText = Get-Content $lockPath -ErrorAction Stop | Select-Object -First 1
+        $pidVal = [int]$pidText
+        $proc = Get-Process -Id $pidVal -ErrorAction SilentlyContinue
+        if (-not $proc) { Remove-Item $lockPath -Force -ErrorAction SilentlyContinue; Write-Host "🧹 Removed stale lock" -ForegroundColor Yellow }
+    } catch { Remove-Item $lockPath -Force -ErrorAction SilentlyContinue }
+}
 
 Write-Host ""
 
 # Fix OpenMP duplicate library issue (common with conda)
 $env:KMP_DUPLICATE_LIB_OK = "TRUE"
 
-# Start the app using the shared conda env (force correct Miniconda path)
-$defaultConda = Join-Path $env:USERPROFILE "miniconda3\Scripts\conda.exe"
-$condaExe = if (Test-Path $defaultConda) { $defaultConda } else { "conda" }
-# Force envs dir to Miniconda3 to avoid older paths
-$env:CONDA_ENVS_PATH = Join-Path $env:USERPROFILE "miniconda3\envs"
-
-# Allow overriding env name; default to new Kokoro env
-$envName = if ($env:VOICE_ENV -and $env:VOICE_ENV.Trim().Length -gt 0) { $env:VOICE_ENV } else { "va-clean" }
-
-# If env not found, print hint and exit cleanly
-$envsList = & $condaExe env list 2>$null | Out-String
-if ($envsList -notmatch "(?im)^$envName\s") {
-    Write-Host "⚠️  Conda env '$envName' not found under $($env:CONDA_ENVS_PATH)." -ForegroundColor Yellow
-    Write-Host "    Set VOICE_ENV to your existing env name or create 'voice-assistant'." -ForegroundColor Yellow
-    Write-Host "    Example: `$env:VOICE_ENV='your-old-env'; .\\start_voice_assistant.ps1" -ForegroundColor Yellow
+# Locate assistant entrypoint
+$scriptPath = Join-Path $PSScriptRoot "voice-assistant\main.py"
+if (-not (Test-Path $scriptPath)) {
+    Write-Host "❌ Could not find main.py at $scriptPath" -ForegroundColor Red
     exit 1
 }
 
-& $condaExe run -n $envName python src/ultimate_voice_assistant.py
+# First-time setup wizard (saves user preferences under %APPDATA%\VoiceAssistant)
+$settingsPath = Join-Path $env:APPDATA "VoiceAssistant\settings.yaml"
+if (-not (Test-Path $settingsPath)) {
+    Write-Host "🧪 Running first-time setup wizard..." -ForegroundColor Cyan
+    try {
+        & python $scriptPath --wizard
+    } catch {
+        Write-Host "⚠️  Wizard could not run; continuing with defaults." -ForegroundColor Yellow
+    }
+}
+
+Write-Host "🚀 Launching assistant..." -ForegroundColor Cyan
+Start-Process -FilePath "python" -ArgumentList "`"$scriptPath`"" -WorkingDirectory $PSScriptRoot

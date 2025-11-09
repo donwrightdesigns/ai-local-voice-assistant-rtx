@@ -167,3 +167,6 @@ config/secrets.yaml
 .Trashes
 ehthumbs.db
 Thumbs.db
+# pixi environments
+.pixi/*
+!.pixi/config.toml
