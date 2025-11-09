@@ -17,8 +17,21 @@ from .llm_providers import (
     VLLMProvider,
 )
 from .tts_service import TTSService
-import coqui_whisper
+from .agent_setup import create_agent, build_langchain_llm
+from faster_whisper import WhisperModel
 import os
+
+# LangChain imports
+try:
+    from langchain.memory import ConversationBufferMemory
+    from langchain.chains import ConversationChain
+    from langchain.prompts import PromptTemplate
+    LANGCHAIN_AVAILABLE = True
+except Exception:
+    LANGCHAIN_AVAILABLE = False
+    ConversationBufferMemory = None
+    ConversationChain = None
+    PromptTemplate = None
 
 # Optional hotkey and typing support
 try:
@@ -70,7 +83,7 @@ class Assistant:
             provider = self.config.get("llm", {}).get("provider", "ollama")
         
         # ------------------ ASR ------------------
-        self.whisper = coqui_whisper.load(stt_model, device=stt_device)
+        self.whisper = WhisperModel(stt_model, device=stt_device, compute_type=self.config.get("stt", {}).get("compute_type", "int8"))
         
         # ------------------ TTS ------------------
         tts_fallback = self.config.get("tts", {}).get("fallback", True)
@@ -78,61 +91,58 @@ class Assistant:
         tts_model = self.config.get("tts", {}).get("model", "kokoro-en")
         self.tts_service = TTSService(fallback=tts_fallback, model_name=tts_model, device=tts_device)
         
-        # ------------------ LLM provider ------------------
-        if provider == "openai":
-            openai_model = self.config.get("llm", {}).get("openai", {}).get("model", "gpt-4o-mini")
-            self.llm = OpenAIProvider(openai_model)
-        elif provider == "ollama":
-            ollama_cfg = self.config.get("llm", {}).get("ollama", {})
-            ollama_profile = ollama_cfg.get("active_profile", "fast")
-            ollama_model = ollama_cfg.get("profiles", {}).get(ollama_profile, ollama_cfg.get("model", "llama3.2:3b"))
-            base_url = ollama_cfg.get("base_url", "http://localhost:11434")
-            self.llm = OllamaProvider(ollama_model, base_url=base_url)
-        elif provider in ("vllm", "local"):
-            vllm_endpoint = self.config.get("llm", {}).get("vllm", {}).get("endpoint", "http://localhost:8000/v1")
-            self.llm = VLLMProvider(vllm_endpoint)
-        else:
-            # Fallback to ollama
-            ollama_profile = self.config.get("llm", {}).get("ollama", {}).get("active_profile", "fast")
-            ollama_model = self.config.get("llm", {}).get("ollama", {}).get("profiles", {}).get(ollama_profile, "llama3.2:3b")
-            self.llm = OllamaProvider(ollama_model)
+        # ------------------ LLM + Agent ------------------
+        # Build LangChain LLM instance
+        llm_config = self.config.get("llm", {})
+        llm_provider_config = llm_config.get(provider, {})
+        self.llm_instance = build_langchain_llm(provider, llm_provider_config)
+        
+        # Create ReAct agent with memory
+        system_prompt = self.config.get("prompts", {}).get("system_prompt", None)
+        self.agent = create_agent(self.llm_instance, system_prompt)
         
         vad_mode = self.config.get("vad", {}).get("mode", 3)
         self.recorder = AudioRecorder(vad_mode=vad_mode)
         self.state = "idle"
+        
+        # Store wake words for display
+        self.wake_words = os.environ.get("PORCUPINE_KEYWORDS", "okay luna,hey luna")
 
         # Hotkey state
         self._keyboard = KeyboardController() if PYNPUT_AVAILABLE else None
         self._record_flag = False
         self._mode_active: str | None = None
         self._frame_buffer: list[bytes] = []
+        
+        # Display initialization banner
+        mode = self.config.get("mode", "hotkey").lower()
+        print("\n" + "="*70)
+        print("🎤 VOICE ASSISTANT - INITIALIZING")
+        print("="*70)
+        print(f"Mode: {mode}")
+        if mode == "vad" or mode != "hotkey":
+            print(f"Wake Words: {self.wake_words}")
+        print(f"LLM: {self.config.get('llm', {}).get('provider', 'ollama')}")
+        print(f"STT: {stt_model}")
+        print(f"TTS: {self.config.get('tts', {}).get('engine', 'auto')}")
+        print("="*70 + "\n")
 
     async def _process_query(self, text: str):
         self.state = "processing"
-        # Simple buffered streaming for smoother TTS
-        buf = []
-        last_flush = time.time()
-        async for token in self.llm.stream(text):
-            buf.append(token)
-            should_flush = False
-            if any(token.endswith(p) for p in (".", "!", "?")):
-                should_flush = True
-            if len(" ".join(buf)) >= 80:
-                should_flush = True
-            if time.time() - last_flush > 0.6:
-                should_flush = True
-            if should_flush:
-                chunk = " ".join(buf).strip()
-                if chunk:
-                    self.tts_service.speak_tokens([chunk])
-                buf.clear()
-                last_flush = time.time()
-        # Flush any remainder
-        if buf:
-            chunk = " ".join(buf).strip()
-            if chunk:
-                self.tts_service.speak_tokens([chunk])
-        self.state = "idle"
+        try:
+            # Use LangChain agent with memory and reasoning
+            response = self.agent.invoke({"input": text})
+            output = response.get("output", "Sorry, I couldn't process that.")
+            
+            # Speak the response in chunks
+            if output:
+                sentences = [s.strip() + "." for s in output.split(".") if s.strip()]
+                self.tts_service.speak_tokens(sentences)
+        except Exception as e:
+            print(f"[error] Query processing failed: {e}")
+            self.tts_service.speak_tokens(["Sorry, something went wrong."])
+        finally:
+            self.state = "idle"
 
     async def listen(self):
         """
@@ -141,13 +151,41 @@ class Assistant:
         """
         self.state = "listening"
         wake_mode = os.environ.get("WAKE_MODE", str(self.config.get("wake_mode", "porcupine"))).lower()
+        
+        # Display welcome banner on first listen
+        if not hasattr(self, '_listen_banner_shown'):
+            print("\n" + "="*70)
+            print("🎤 VOICE ASSISTANT - LISTENING MODE")
+            print("="*70)
+            print("✅ Ready! Waiting for voice...")
+            print("")
+            
+            if wake_mode == "porcupine":
+                porcupine_key = os.environ.get("PICOVOICE_ACCESS_KEY", "").strip()
+                keywords = os.environ.get("PORCUPINE_KEYWORDS", "okay luna,hey luna").split(",")
+                if not porcupine_key:
+                    print("Wake Mode: VAD (Porcupine not configured - falling back)")
+                    print("Just speak and the assistant will listen.")
+                else:
+                    keywords_str = ", ".join([k.strip() for k in keywords if k.strip()])
+                    print(f"Wake Word(s): {keywords_str}")
+                    print("Say the wake word, then your question.")
+            else:
+                print("Wake Mode: VAD (automatic speech detection)")
+                print("Just speak and the assistant will listen.")
+            
+            print("")
+            print("Hotkeys:")
+            print("• Press Ctrl+C to exit")
+            print("="*70 + "\n")
+            self._listen_banner_shown = True
 
         # Porcupine (default) with graceful fallback
         if wake_mode == "porcupine":
             if not PORCUPINE_AVAILABLE:
                 print("[wake] Porcupine not available – falling back to VAD. Install pvporcupine and set PICOVOICE_ACCESS_KEY.")
             else:
-                keywords = os.environ.get("PORCUPINE_KEYWORDS", "computer").split(",")
+                keywords = os.environ.get("PORCUPINE_KEYWORDS", "okay luna,hey luna").split(",")
                 access_key = os.environ.get("PICOVOICE_ACCESS_KEY", "").strip()
                 if not access_key:
                     print("[wake] Missing PICOVOICE_ACCESS_KEY. Get one free at https://console.picovoice.ai and set it before running. Falling back to VAD.")
@@ -228,7 +266,15 @@ class Assistant:
         self._frame_buffer.clear()
         if not audio_bytes:
             return
-        transcript = self.whisper.transcribe(audio_bytes)["text"]
+        try:
+            import numpy as np
+            # Convert raw PCM bytes to numpy float32 array (16-bit signed @ 16kHz)
+            audio_np = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+            segments, info = self.whisper.transcribe(audio_np, beam_size=5)
+            transcript = " ".join([seg.text for seg in segments])
+        except Exception as e:
+            print(f"[error] Transcription failed: {e}")
+            return
         if not transcript.strip():
             return
         if mode == "dictation":
@@ -271,6 +317,22 @@ class Assistant:
         if not PYNPUT_AVAILABLE:
             print("[hotkeys] pynput not available; cannot start hotkey mode.")
             return
+        
+        # Display welcome banner with hotkey instructions
+        print("\n" + "="*70)
+        print("🎤 VOICE ASSISTANT - HOTKEY MODE")
+        print("="*70)
+        print("✅ Ready! Use these hotkeys:")
+        print("")
+        print("• Ctrl+F2  - Conversation (AI responds with voice)")
+        print("• Ctrl+F1  - Dictation (types what you say)")
+        print("• F15      - AI Typing (AI types a response)")
+        print("• F14      - Screen AI (AI sees screen + responds with voice)")
+        print("• Escape   - Exit")
+        print("")
+        print("Hold the key while speaking, release when done.")
+        print("="*70 + "\n")
+        
         # Start frame reader thread
         import threading
         t = threading.Thread(target=self._frame_reader, daemon=True)
@@ -329,8 +391,15 @@ class Assistant:
             except Exception:
                 pass
 
-        with Listener(on_press=on_press, on_release=on_release) as listener:
-            listener.join()
+        try:
+            with Listener(on_press=on_press, on_release=on_release) as listener:
+                listener.join()
+        finally:
+            # Ensure audio resources are released when hotkey loop exits (e.g. ESC)
+            try:
+                self.stop()
+            except Exception:
+                pass
 
     async def run(self):
         """

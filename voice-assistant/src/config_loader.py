@@ -68,52 +68,59 @@ DEFAULTS = {
     "wake_mode": "porcupine",
 }
 
-def apply_computed_defaults(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    # Fill minimal defaults
+def get_gpu_info() -> tuple[bool, str, int]:
+    """Returns (has_gpu, model_name, vram_mb)"""
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return False, "", 0
+        device = torch.cuda.get_device_name(0)
+        vram = torch.cuda.get_device_properties(0).total_memory // (1024 * 1024)  # MB
+        return True, device, vram
+    except Exception:
+        return False, "", 0
+
+def apply_computed_defaults(cfg: Dict[str, Any], cli_overrides: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+    Fill defaults, auto-detect device/profile, apply CLI overrides.
+    Merge chain: repo defaults → user settings → CLI overrides
+    """
     merged = deep_merge(DEFAULTS, cfg)
+    
+    # Auto-detect GPU
+    has_gpu_val, gpu_model, vram_mb = get_gpu_info()
+    device_value = "cuda" if has_gpu_val else "cpu"
+    
     # Resolve device auto -> gpu/cpu
-    compute = "gpu" if has_gpu() else "cpu"
     for key in ("stt", "tts"):
         section = merged.get(key, {})
         dev = str(section.get("device", "auto")).lower()
         if dev == "auto":
-            section["device"] = "cuda" if compute == "gpu" else "cpu"
+            section["device"] = device_value
             merged[key] = section
+    
+    # Profile constraints based on VRAM
+    if has_gpu_val and vram_mb < 6000:  # < 6 GB
+        # Force fast profile
+        merged.setdefault("stt", {})["profile"] = "fast"
+        merged.setdefault("llm", {}).setdefault("ollama", {})["active_profile"] = "fast"
+    
+    # Apply CLI overrides (highest precedence)
+    if cli_overrides:
+        merged = deep_merge(merged, cli_overrides)
+    
+    # Store computed values for banner
+    merged["_system"] = {
+        "has_gpu": has_gpu_val,
+        "gpu_model": gpu_model,
+        "vram_mb": vram_mb,
+        "device": device_value,
+    }
+    
     return merged
 
 def save_user_settings(settings: Dict[str, Any]):
     path = user_settings_path()
-    dump_yaml(path, settings)
-
-def startup_wizard(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    # Only interactive choices; return minimal user overrides
-    user_overrides: Dict[str, Any] = {}
-    print("\n=== Voice Assistant – First-time setup ===")
-    # Compute target
-    compute_default = "gpu" if has_gpu() else "cpu"
-    compute = input(f"Compute target [gpu/cpu] (default: {compute_default}): ").strip().lower() if is_tty() else compute_default
-    if compute not in ("gpu", "cpu"):
-        compute = compute_default
-    # Map to device values
-    dev_value = "cuda" if compute == "gpu" else "cpu"
-    user_overrides.setdefault("stt", {})["device"] = dev_value
-    user_overrides.setdefault("tts", {})["device"] = dev_value
-
-    # LLM profile (ollama)
-    llm_profiles = cfg.get("llm", {}).get("ollama", {}).get("profiles", {})
-    llm_default = cfg.get("llm", {}).get("ollama", {}).get("active_profile", "fast")
-    print(f"LLM profile options: {', '.join(llm_profiles.keys()) or 'fast, medium, advanced'}")
-    llm_choice = input(f"Local LLM profile [fast/medium/advanced] (default: {llm_default}): ").strip().lower() if is_tty() else llm_default
-    if llm_choice not in ("fast", "medium", "advanced"):
-        llm_choice = llm_default
-    user_overrides.setdefault("llm", {}).setdefault("ollama", {})["active_profile"] = llm_choice
-
-    # STT profile (whisper)
-    stt_default = cfg.get("stt", {}).get("profile", "medium")
-    stt_choice = input(f"Whisper size [fast/medium/advanced] (default: {stt_default}): ").strip().lower() if is_tty() else stt_default
-    if stt_choice not in ("fast", "medium", "advanced"):
-        stt_choice = stt_default
-    user_overrides.setdefault("stt", {})["profile"] = stt_choice
-
-    print("\nSettings saved. You can change these later in the settings file.")
-    return user_overrides
+    # Don't save _system computed values
+    clean = {k: v for k, v in settings.items() if not k.startswith("_")}
+    dump_yaml(path, clean)

@@ -24,10 +24,16 @@ class AudioRecorder:
             frames_per_buffer=CHUNK,
         )
         self.vad = webrtcvad.Vad(int(vad_mode))
+        self._running = True
 
     def __iter__(self) -> Generator[bytes, None, None]:
-        for _ in iter(None, None):
-            frame = self.stream.read(CHUNK, exception_on_overflow=False)
+        while self._running:
+            try:
+                frame = self.stream.read(CHUNK, exception_on_overflow=False)
+            except OSError:
+                if not self._running:
+                    break
+                continue
             yield frame
 
     def is_speech(self, frame: bytes) -> bool:
@@ -37,6 +43,17 @@ class AudioRecorder:
         return np.linalg.norm(np.frombuffer(frame, dtype=np.int16))
 
     def stop(self):
-        self.stream.stop_stream()
-        self.stream.close()
-        self.p.terminate()
+        self._running = False
+        try:
+            try:
+                if self.stream and hasattr(self.stream, 'is_active'):
+                    if self.stream.is_active():
+                        self.stream.stop_stream()
+            except OSError:
+                # Stream already closed
+                pass
+            if self.stream:
+                self.stream.close()
+        finally:
+            if self.p:
+                self.p.terminate()

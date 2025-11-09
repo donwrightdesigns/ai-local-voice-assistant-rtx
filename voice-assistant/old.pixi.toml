@@ -1,0 +1,20 @@
+[project]
+name = "voice-assistant"
+channels = ["conda-forge", "pytorch"]
+platforms = ["linux-64", "osx-arm64", "win-64"]
+
+[dependencies]
+python = "3.12.*"
+speechrecognition = "*"
+pyaudio = "*"
+pyttsx3 = "*"
+openai = "*"
+tiktoken = "*"
+fastapi = "*"
+uvicorn = "*"
+
+[feature.dev]
+dependencies = { black = "*", flake8 = "*", isort = "*" }
+
+[environments]
+default = ["va-clean"]
