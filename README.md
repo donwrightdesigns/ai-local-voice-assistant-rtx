@@ -25,7 +25,7 @@
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/voice-assistant-windows.git
+   git clone https://github.com/donwrightdesigns/voice-assistant-windows.gitvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
    cd voice-assistant-windows
    ```
 
