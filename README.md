@@ -18,8 +18,8 @@
 
 ### Prerequisites
 - Windows 10/11
-- Python 3.8 or higher
-- [Ollama](https://ollama.com/) installed and running locally
+- Python 3.10 or higher
+- [Ollama](https://ollama.com/) installed and running locally** Included below if not already installed
 
 ### Installation
 
@@ -29,21 +29,25 @@
    cd voice-assistant-windows
    ```
 
-2. **Install dependencies**
+2. **Install dependencies** - 
+   **trying to simplify and improve this portion**
+   you may want to install torch, torchvision and torchaudio
+   individually with conda or pip based on your specific platform before running:
+   [See installing torch here](https://learn.microsoft.com/en-us/windows/ai/windows-ml/tutorials/pytorch-installation#get-pytorch)
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Install and start Ollama**
+4. **Install and start Ollama**
    - Download from [ollama.com](https://ollama.com/)
    - Install a model: `ollama pull llama3.2:3b`
    - Ensure Ollama is running on `http://127.0.0.1:11434`
 
-4. **Configure the assistant**
+5. **Configure the assistant**
    - Edit `config/config.yaml` to customize settings
    - Adjust model, voice, and hotkey preferences
 
-5. **Run the assistant**
+6. **Run the assistant**
    ```bash
    python src/ultimate_voice_assistant.py
    ```
