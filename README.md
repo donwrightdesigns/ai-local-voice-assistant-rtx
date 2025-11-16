@@ -1,4 +1,4 @@
-# RTX Hands-Free Assistant (Beta very close - so I guess we're ALPHA)
+# LOCAL AI Conversational OPEN-Model Voice Assistant W/ RTX Optimization and System-Wide Usability
 
 **Local, open-source, GPU-optimized voice assistant** — No cloud, no subscriptions, works entirely offline with Porcupine wake-words, screen reading, and Kokoro TTS Voice (very pleasant 10x compared to microsoft voices and small footprint).
 
