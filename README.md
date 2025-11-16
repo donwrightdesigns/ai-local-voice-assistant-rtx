@@ -4,36 +4,39 @@
 
 ![Language](https://img.shields.io/badge/Python-3.12-blue) ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey) ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-## 🌟 Key Features
+## 🌟 LATEST Improved & Additional Features
 
 - **Porcupine Wake-Word** — Hands-free "computer" or "jarvis" voice trigger (VAD fallback)
-- **Kokoro TTS** — Fast, natural-sounding speech synthesis on GPU
-- **Screen Reading** — AI analyzes your screen and responds contextually
-- **Hotkey Modes** — Ctrl+F2 (conversation), Ctrl+F1 (dictation), F14 (screen AI), F15 (AI typing)
 - **Local LLMs** — Ollama, vLLM, or OpenAI backends (default: Ollama for fully local operation)
 - **GPU Optimized** — Auto-detects RTX/CUDA and uses GPU for everything
 - **Two Model Tiers** — `fast` (lightweight, 3B LLM) or `advanced` (13B LLM, requires >12GB VRAM)
+- **Kokoro TTS** — Fast, natural-sounding speech synthesis on GPU
+- **Screen Reading** — AI analyzes your screen and responds contextually
+- **Hotkey Modes** — Ctrl+F2 (conversation), Ctrl+F1 (dictation), F14 (screen AI), F15 (AI typing)
+
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Windows 10/11
 - Python 3.10 or higher
-- [Ollama](https://ollama.com/) installed and running locally** Included below if not already installed
+- [Ollama](https://ollama.com/) Must be installed and running locally Prior to Running
+
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/donwrightdesigns/voice-assistant-windows.gitvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+   git clone https://github.com/donwrightdesigns/voice-assistant-windows.git
    cd voice-assistant-windows
    ```
 
 2. **Install dependencies** - 
-   **trying to simplify and improve this portion**
-   you may want to install torch, torchvision and torchaudio
-   individually with conda or pip based on your specific platform before running:
-   [See installing torch here](https://learn.microsoft.com/en-us/windows/ai/windows-ml/tutorials/pytorch-installation#get-pytorch)
+  Recommended that you install torch, torchvision and torchaudio
+   individually with conda or pip based on your specific situation: 
+   
+   See installing torch here](https://learn.microsoft.com/en-us/windows/ai/windows-ml/tutorials/pytorch-installation#get-pytorch)
+
    ```bash
    pip install -r requirements.txt
    ```
@@ -104,7 +107,7 @@ prompts:
     respectful, and aim to provide concise responses.
 ```
 
-### Available Models
+### Available Speech Models
 - **Whisper STT**: `tiny.en`, `base.en`, `small.en`, `medium.en`, `large-v3`
 - **Ollama LLM**: Any model supported by Ollama (llama3.2, mistral, etc.)
 
@@ -133,6 +136,27 @@ The project includes several demo scripts to test individual components:
 - `demo_openai_tts.py` - Test OpenAI TTS
 - `test_pyttsx3.py` - Test pyttsx3 TTS
 
+## 🧭 Setup Wizard, Profiles, and User Settings
+
+- On first run (or via `python voice-assistant/main.py --wizard`), a TTY-only wizard lets you choose:
+  - Compute: GPU or CPU (auto-detected default)
+  - Local LLM profile: Fast / Medium / Advanced (maps to configured models)
+  - Whisper size: Fast / Medium / Advanced (tiny/base/large-v3)
+- Your choices are saved to `%APPDATA%\VoiceAssistant\settings.yaml` and override `voice-assistant/config.yaml`.
+- Desktop icon/PowerShell launcher runs the wizard automatically on first run when possible. Otherwise, defaults apply and you can customize later.
+
+### Wake-word (default) and Fallback
+- Default wake mode: Porcupine (hands-free). Set `PICOVOICE_ACCESS_KEY` to enable.
+- If Porcupine isn’t configured or installed, the app falls back to VAD automatically.
+
+### Quick commands
+```powershell
+# Run wizard explicitly
+python voice-assistant\main.py --wizard
+
+# Normal launch (Ollama by default)
+.\start_voice_assistant.ps1
+```
 ## 🐛 Troubleshooting
 
 ### Common Issues
@@ -178,6 +202,14 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 5. Push to the branch: `git push origin feature-name`
 6. Submit a pull request
 
+
+## 📞 Support
+
+If you encounter any problems or have questions, please:
+1. Check the [troubleshooting section](#🐛-troubleshooting)
+2. Search existing [GitHub issues](https://github.com/yourusername/voice-assistant-windows/issues)
+3. Create a new issue with detailed information about your problem
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -189,36 +221,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Piper TTS](https://github.com/rhasspy/piper) for high-quality text-to-speech
 - [LangChain](https://langchain.com/) for LLM conversation management
 - [Rich](https://github.com/Textualize/rich) for beautiful console output
-
-## 📞 Support
-
-If you encounter any problems or have questions, please:
-1. Check the [troubleshooting section](#🐛-troubleshooting)
-2. Search existing [GitHub issues](https://github.com/yourusername/voice-assistant-windows/issues)
-3. Create a new issue with detailed information about your problem
-
----
-
-**Made with ❤️ for the Windows community**
-
-## 🧭 Setup Wizard, Profiles, and User Settings
-
-- On first run (or via `python voice-assistant/main.py --wizard`), a TTY-only wizard lets you choose:
-  - Compute: GPU or CPU (auto-detected default)
-  - Local LLM profile: Fast / Medium / Advanced (maps to configured models)
-  - Whisper size: Fast / Medium / Advanced (tiny/base/large-v3)
-- Your choices are saved to `%APPDATA%\VoiceAssistant\settings.yaml` and override `voice-assistant/config.yaml`.
-- Desktop icon/PowerShell launcher runs the wizard automatically on first run when possible. Otherwise, defaults apply and you can customize later.
-
-### Wake-word (default) and Fallback
-- Default wake mode: Porcupine (hands-free). Set `PICOVOICE_ACCESS_KEY` to enable.
-- If Porcupine isn’t configured or installed, the app falls back to VAD automatically.
-
-### Quick commands
-```powershell
-# Run wizard explicitly
-python voice-assistant\main.py --wizard
-
-# Normal launch (Ollama by default)
-.\start_voice_assistant.ps1
-```
